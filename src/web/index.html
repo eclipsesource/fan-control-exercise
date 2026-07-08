@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thermal Fan Control — Instrument Panel</title>
+<style>
+  :root {
+    --panel-bg: #0E1416;
+    --grid: #1C2A2E;
+    --cool: #3FA7C4;
+    --warn: #E8B23A;
+    --hot: #E4572E;
+    --ink: #D7E0E2;
+    --accent: #3FA7C4;
+    --surface: #141E22;
+    --border: #253238;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--panel-bg);
+    color: var(--ink);
+    font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 14px;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  header h1 {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  .mode-badge {
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .mode-idle { background: var(--grid); color: #6b8a94; }
+  .mode-realtime { background: #1a3a2a; color: #4ade80; }
+  .mode-scoring { background: #3a2a1a; color: var(--warn); }
+
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 1px;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    background: var(--border);
+  }
+
+  .chart-area {
+    grid-column: 1 / -1;
+    background: var(--panel-bg);
+    padding: 16px;
+    min-height: 160px;
+  }
+
+  .chart-area canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .zone-panel {
+    background: var(--panel-bg);
+    padding: 16px;
+  }
+
+  .zone-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .zone-name {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #6b8a94;
+  }
+
+  .zone-temp {
+    font-size: 28px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .temp-cool { color: var(--cool); }
+  .temp-warn { color: var(--warn); }
+  .temp-hot { color: var(--hot); }
+
+  .threshold-label {
+    font-size: 11px;
+    color: #6b8a94;
+    margin-top: 2px;
+  }
+
+  .fan-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .fan-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+  }
+
+  .fan-label {
+    font-size: 11px;
+    color: #6b8a94;
+    margin-bottom: 4px;
+  }
+
+  .fan-rpm {
+    font-size: 18px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+
+  .fan-rpm-unit {
+    font-size: 11px;
+    color: #6b8a94;
+    margin-left: 2px;
+  }
+
+  .fan-power {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: #6b8a94;
+    margin-top: 2px;
+  }
+
+  .fan-bar {
+    height: 3px;
+    background: var(--grid);
+    border-radius: 2px;
+    margin-top: 6px;
+    overflow: hidden;
+  }
+
+  .fan-bar-fill {
+    height: 100%;
+    background: var(--cool);
+    border-radius: 2px;
+    transition: width 0.05s linear;
+  }
+
+  .controls-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+
+  .control-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .control-group-label {
+    font-size: 11px;
+    color: #6b8a94;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+
+  .separator {
+    width: 1px;
+    height: 24px;
+    background: var(--border);
+  }
+
+  button {
+    background: var(--grid);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  button:hover { background: #253238; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button:active { background: #2a3a42; }
+  button.primary { background: #1a3848; border-color: var(--accent); color: var(--accent); }
+  button.primary:hover { background: #1e4050; }
+  button.active { background: var(--accent); color: var(--panel-bg); border-color: var(--accent); }
+
+  .speed-btn {
+    padding: 4px 10px;
+    font-size: 11px;
+    min-width: 36px;
+    text-align: center;
+  }
+
+  .lambda-input {
+    width: 60px;
+    background: var(--grid);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-family: inherit;
+    font-size: 12px;
+    text-align: right;
+  }
+  .lambda-input:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  .scenario-select {
+    background: var(--grid);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 5px 8px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    appearance: auto;
+  }
+  .scenario-select:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  .score-panel {
+    grid-column: 1 / -1;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 12px 20px;
+    display: none;
+  }
+
+  .score-panel.visible { display: flex; gap: 32px; align-items: baseline; flex-wrap: wrap; }
+
+  .score-total {
+    font-size: 24px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .score-detail {
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    color: #6b8a94;
+  }
+  .score-detail span { color: var(--ink); }
+
+  .total-power-readout {
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    color: #6b8a94;
+    margin-left: auto;
+  }
+  .total-power-readout span { color: var(--ink); font-size: 16px; font-weight: 600; }
+
+  .idle-message {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 40px;
+    color: #6b8a94;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Thermal Fan Control</h1>
+  <div class="total-power-readout">Total Power: <span id="totalPower">0.00</span> W</div>
+  <div class="mode-badge mode-idle" id="modeBadge">Idle</div>
+</header>
+
+<div class="main-grid">
+  <div class="chart-area">
+    <canvas id="chart"></canvas>
+  </div>
+
+  <div class="zone-panel" id="zoneA">
+    <div class="zone-header">
+      <div>
+        <div class="zone-name">Zone A</div>
+        <div class="threshold-label">Threshold: 80°C</div>
+      </div>
+      <div>
+        <div class="zone-temp temp-cool" id="tempA">25.0°</div>
+      </div>
+    </div>
+    <div class="fan-grid">
+      <div class="fan-card">
+        <div class="fan-label">Fan 0</div>
+        <div class="fan-rpm"><span id="rpm0">0</span><span class="fan-rpm-unit">RPM</span></div>
+        <div class="fan-power" id="pow0">0.00 W</div>
+        <div class="fan-bar"><div class="fan-bar-fill" id="bar0" style="width:0%"></div></div>
+      </div>
+      <div class="fan-card">
+        <div class="fan-label">Fan 1</div>
+        <div class="fan-rpm"><span id="rpm1">0</span><span class="fan-rpm-unit">RPM</span></div>
+        <div class="fan-power" id="pow1">0.00 W</div>
+        <div class="fan-bar"><div class="fan-bar-fill" id="bar1" style="width:0%"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="zone-panel" id="zoneB">
+    <div class="zone-header">
+      <div>
+        <div class="zone-name">Zone B</div>
+        <div class="threshold-label">Threshold: 70°C</div>
+      </div>
+      <div>
+        <div class="zone-temp temp-cool" id="tempB">25.0°</div>
+      </div>
+    </div>
+    <div class="fan-grid">
+      <div class="fan-card">
+        <div class="fan-label">Fan 2</div>
+        <div class="fan-rpm"><span id="rpm2">0</span><span class="fan-rpm-unit">RPM</span></div>
+        <div class="fan-power" id="pow2">0.00 W</div>
+        <div class="fan-bar"><div class="fan-bar-fill" id="bar2" style="width:0%"></div></div>
+      </div>
+      <div class="fan-card">
+        <div class="fan-label">Fan 3</div>
+        <div class="fan-rpm"><span id="rpm3">0</span><span class="fan-rpm-unit">RPM</span></div>
+        <div class="fan-power" id="pow3">0.00 W</div>
+        <div class="fan-bar"><div class="fan-bar-fill" id="bar3" style="width:0%"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="score-panel" id="scorePanel">
+    <div>
+      <div style="font-size:11px;color:#6b8a94;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Score (lower = better)</div>
+      <div class="score-total" id="scoreTotal">—</div>
+    </div>
+    <div class="score-detail">Thermal: <span id="scoreThermal">—</span></div>
+    <div class="score-detail">Power: <span id="scorePower">—</span></div>
+    <div class="score-detail">Peak A: <span id="peakA">—</span></div>
+    <div class="score-detail">Peak B: <span id="peakB">—</span></div>
+    <div class="score-detail">Violations: <span id="violationCount">—</span></div>
+  </div>
+</div>
+
+<div class="controls-bar">
+  <div class="control-group">
+    <span class="control-group-label">Scenario</span>
+    <select id="scenarioSelect" class="scenario-select">
+      <option value="scenario1">Scenario 1</option>
+      <option value="scenario2">Scenario 2</option>
+    </select>
+    <button class="primary" id="btnTrigger">Trigger Run</button>
+    <button id="btnScored">Run Scored</button>
+    <button id="btnReset">Reset</button>
+  </div>
+
+  <div class="separator"></div>
+
+  <div class="control-group">
+    <span class="control-group-label">Speed</span>
+    <button class="speed-btn" data-speed="1">1×</button>
+    <button class="speed-btn active" data-speed="3">3×</button>
+    <button class="speed-btn" data-speed="5">5×</button>
+  </div>
+
+  <div class="separator"></div>
+
+  <div class="control-group">
+    <span class="control-group-label">λ</span>
+    <input type="number" class="lambda-input" id="lambdaInput" value="0.1" min="0" step="0.01">
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // --- WebSocket connection ---
+  const WS_URL = `ws://${location.host}`;
+  let ws = null;
+  let reconnectTimer = null;
+
+  function connect() {
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => { if (reconnectTimer) { clearInterval(reconnectTimer); reconnectTimer = null; } };
+    ws.onclose = () => { if (!reconnectTimer) reconnectTimer = setInterval(connect, 2000); };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'tick') onTick(msg.data);
+        else if (msg.type === 'runComplete') onRunComplete(msg.data);
+        else if (msg.type === 'configUpdate') onConfigUpdate(msg.data);
+        else if (msg.type === 'error') console.error('Server error:', msg.data.message);
+      } catch {}
+    };
+  }
+  connect();
+
+  function send(msg) {
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+  }
+
+  // --- State ---
+  const THRESHOLDS = [80, 70];
+  const MAX_RPM = 5000;
+  const CHART_BUFFER = 1000;
+  const history = { zoneA: [], zoneB: [], time: [] };
+  let tickCount = 0;
+
+  // --- DOM refs ---
+  const $ = (id) => document.getElementById(id);
+  const canvas = $('chart');
+  const ctx = canvas.getContext('2d');
+
+  // --- Tick handler ---
+  function onTick(data) {
+    // Update temps
+    const tA = data.zones[0].temp;
+    const tB = data.zones[1].temp;
+    $('tempA').textContent = tA.toFixed(1) + '°';
+    $('tempB').textContent = tB.toFixed(1) + '°';
+    setTempClass('tempA', tA, THRESHOLDS[0]);
+    setTempClass('tempB', tB, THRESHOLDS[1]);
+
+    // Update fans
+    for (let i = 0; i < 4; i++) {
+      const fan = data.fans[i];
+      $('rpm' + i).textContent = Math.round(fan.rpm);
+      $('pow' + i).textContent = fan.power.toFixed(2) + ' W';
+      $('bar' + i).style.width = (fan.rpm / MAX_RPM * 100) + '%';
+
+      // Color bar by RPM fraction
+      const frac = fan.rpm / MAX_RPM;
+      $('bar' + i).style.background = frac > 0.85 ? 'var(--hot)' : frac > 0.5 ? 'var(--warn)' : 'var(--cool)';
+    }
+
+    // Total power
+    $('totalPower').textContent = data.totalPower.toFixed(2);
+
+    // Mode
+    setMode(data.mode);
+
+    // Chart history
+    history.zoneA.push(tA);
+    history.zoneB.push(tB);
+    history.time.push(tickCount++);
+    if (history.zoneA.length > CHART_BUFFER) {
+      history.zoneA.shift();
+      history.zoneB.shift();
+      history.time.shift();
+    }
+
+    drawChart();
+  }
+
+  function setTempClass(id, temp, threshold) {
+    const el = $(id);
+    el.classList.remove('temp-cool', 'temp-warn', 'temp-hot');
+    if (temp >= threshold) el.classList.add('temp-hot');
+    else if (temp >= threshold - 10) el.classList.add('temp-warn');
+    else el.classList.add('temp-cool');
+  }
+
+  function setMode(mode) {
+    const badge = $('modeBadge');
+    badge.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+    badge.className = 'mode-badge mode-' + mode;
+  }
+
+  // --- Run complete ---
+  function onRunComplete(result) {
+    const panel = $('scorePanel');
+    panel.classList.add('visible');
+    $('scoreTotal').textContent = result.score.toFixed(1);
+    $('scoreThermal').textContent = result.components.thermal.toFixed(1);
+    $('scorePower').textContent = result.components.power.toFixed(1);
+    $('peakA').textContent = result.perZonePeakTemp[0].toFixed(1) + '°C';
+    $('peakB').textContent = result.perZonePeakTemp[1].toFixed(1) + '°C';
+    $('violationCount').textContent = result.violations.length;
+
+    // If we have series data from a scored run, render it
+    if (result.series) {
+      // Replace chart history with the full series
+      history.zoneA.length = 0;
+      history.zoneB.length = 0;
+      history.time.length = 0;
+      for (let i = 0; i < result.series.zoneTemp[0].length; i++) {
+        history.zoneA.push(result.series.zoneTemp[0][i]);
+        history.zoneB.push(result.series.zoneTemp[1][i]);
+        history.time.push(i);
+      }
+      tickCount = result.series.zoneTemp[0].length;
+      drawChart();
+    }
+  }
+
+  // --- Config update ---
+  function onConfigUpdate(data) {
+    $('lambdaInput').value = data.lambda;
+  }
+
+  // --- Chart drawing ---
+  function drawChart() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    const W = rect.width;
+    const H = rect.height;
+    const PAD = { top: 10, right: 16, bottom: 28, left: 48 };
+    const cw = W - PAD.left - PAD.right;
+    const ch = H - PAD.top - PAD.bottom;
+
+    // Clear
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--panel-bg');
+    ctx.fillRect(0, 0, W, H);
+
+    if (history.zoneA.length < 2) {
+      ctx.fillStyle = '#6b8a94';
+      ctx.font = '14px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('Idle — trigger a run to begin', W / 2, H / 2);
+      return;
+    }
+
+    // Y axis: temperature range
+    const allTemps = [...history.zoneA, ...history.zoneB, ...THRESHOLDS];
+    const minT = Math.min(20, Math.min(...allTemps) - 5);
+    const maxT = Math.max(90, Math.max(...allTemps) + 5);
+
+    function xPos(i) { return PAD.left + (i / (history.zoneA.length - 1)) * cw; }
+    function yPos(t) { return PAD.top + (1 - (t - minT) / (maxT - minT)) * ch; }
+
+    // Grid lines
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid');
+    ctx.lineWidth = 1;
+    for (let t = Math.ceil(minT / 10) * 10; t <= maxT; t += 10) {
+      const y = yPos(t);
+      ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+      ctx.fillStyle = '#6b8a94';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(t + '°', PAD.left - 6, y + 3);
+    }
+
+    // Threshold lines
+    for (let i = 0; i < THRESHOLDS.length; i++) {
+      const y = yPos(THRESHOLDS[i]);
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--hot');
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--hot');
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText((i === 0 ? 'A' : 'B') + ' ' + THRESHOLDS[i] + '°', W - PAD.right + 2, y + 3);
+    }
+
+    // Draw temperature lines
+    function drawLine(data, color) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      for (let i = 0; i < data.length; i++) {
+        const x = xPos(i);
+        const y = yPos(data[i]);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    drawLine(history.zoneA, getComputedStyle(document.documentElement).getPropertyValue('--cool'));
+    drawLine(history.zoneB, getComputedStyle(document.documentElement).getPropertyValue('--warn'));
+
+    // Legend
+    ctx.font = '11px monospace';
+    const legendY = H - 8;
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--cool');
+    ctx.textAlign = 'left';
+    ctx.fillText('— Zone A', PAD.left, legendY);
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--warn');
+    ctx.fillText('— Zone B', PAD.left + 80, legendY);
+  }
+
+  // --- Resize ---
+  window.addEventListener('resize', drawChart);
+
+  // --- Controls ---
+  $('btnTrigger').addEventListener('click', () => {
+    history.zoneA.length = 0;
+    history.zoneB.length = 0;
+    history.time.length = 0;
+    tickCount = 0;
+    $('scorePanel').classList.remove('visible');
+    drawChart();
+    send({ type: 'triggerRun', trace: $('scenarioSelect').value });
+  });
+  $('btnScored').addEventListener('click', () => {
+    send({ type: 'runScored', trace: $('scenarioSelect').value });
+  });
+  $('btnReset').addEventListener('click', () => {
+    send({ type: 'reset' });
+    history.zoneA.length = 0;
+    history.zoneB.length = 0;
+    history.time.length = 0;
+    tickCount = 0;
+    $('scorePanel').classList.remove('visible');
+    drawChart();
+  });
+
+  document.querySelectorAll('.speed-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      send({ type: 'setSpeed', value: Number(btn.dataset.speed) });
+    });
+  });
+
+  $('lambdaInput').addEventListener('change', (e) => {
+    send({ type: 'setLambda', value: Number(e.target.value) });
+  });
+
+
+  // Initial chart
+  drawChart();
+})();
+</script>
+</body>
+</html>
