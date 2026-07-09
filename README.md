@@ -60,14 +60,54 @@ export function control(state: SimState, context: Record<string, any>): number[]
 The shipped starter is a naive proportional controller that ignores fan-zone
 coupling. It works but scores poorly.
 
-## Your Task
+## MCP Server Tools
 
-1. **Build the MCP server** — `src/mcp-server.ts` has one example tool (`reset`).
-   Add tools so Claude Code can deploy controllers, run scenarios, and read results.
-2. **Write a Claude Code skill** — teach Claude the iterative optimization
-   approach: deploy, run, analyze, improve.
-3. **Let Claude optimize** — use the MCP tools to probe the system and iterate
-   on the controller.
+`src/mcp-server.ts` exposes the engine as MCP tools. They split into two groups
+by **what the caller supplies**, which determines whether they are safe to
+auto-approve:
+
+### Safe loop tools — numbers only, bounded output (auto-approvable)
+
+| Tool | Purpose |
+|------|---------|
+| `read_controller` | Read the current controller source |
+| `run_scenario` | Run a built-in scenario through the current controller → compact (<1 KB) summary |
+| `run_custom_scenario` | Run an ad-hoc workload trace → compact summary |
+| `run_params` | Deploy the **built-in parametric controller** with validated numbers, run one scenario → compact summary |
+| `evaluate_params` | Batch-sweep ≤64 param configs × scenarios server-side → ranked table |
+| `optimize` | Deterministic server-side search over the parametric space → best params + history |
+| `analyze_run` | Bounded analysis of a stored run (`byBucket`/`byFan`/`violationWindows`/`peaks`) |
+| `get_series` | Downsampled time series (points-per-field ≤ `maxPoints`) |
+| `list_runs` / `get_run` | Query persisted runs by id |
+| `reset` | Reset the simulator |
+
+All of these return small, size-bounded JSON — no Bash/`jq`/Python needed to
+extract results. Every run is persisted as one JSONL line under `./runs/`,
+keyed by a `runId`, so `analyze_run`/`get_series` never re-dump data into
+context.
+
+### Confirmation-gated tool — arbitrary code (NOT auto-approved)
+
+| Tool | Purpose |
+|------|---------|
+| `deploy_controller` | Deploy free-form controller source (hot-reload + validate) |
+
+**The parametric loop is safe because of *what the agent can supply*, not
+because "no code runs".** `run_params`/`evaluate_params`/`optimize` accept only
+numeric params, which the server validates (finite, in-bounds, correct shape)
+and interpolates as literals into a fixed, server-authored source template
+before deploying it internally. No agent-supplied string is ever compiled, so
+the parametric path has no injection surface. `deploy_controller` is the only
+tool that takes code, and it stays confirmation-gated. The controller execution
+sandbox (in the engine) is the load-bearing safety control.
+
+### Autonomous optimization loop (allowlist)
+
+`.claude/settings.json` allowlists **only** the safe loop tools, so an agent can
+run probe → sweep → analyze → refine with no confirmation prompts.
+`deploy_controller` and `Bash` are intentionally left off the allowlist. The
+`fan-control-optimize` skill (`.claude/skills/fan-control-optimize/`) contains
+the rig cheat-sheet and the tool playbook.
 
 ## MCP Configuration
 
