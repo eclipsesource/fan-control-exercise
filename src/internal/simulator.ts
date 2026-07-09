@@ -61,10 +61,10 @@ export const DEFAULT_CONFIG: SimConfig = {
     },
   ],
   fans: [
-    { maxRpm: 5000, powerCoefficient: 10, airflowCoefficient: 20, airflowSaturationB: 0.5 },
-    { maxRpm: 5000, powerCoefficient: 10, airflowCoefficient: 20, airflowSaturationB: 0.5 },
-    { maxRpm: 5000, powerCoefficient: 10, airflowCoefficient: 20, airflowSaturationB: 0.5 },
-    { maxRpm: 5000, powerCoefficient: 10, airflowCoefficient: 20, airflowSaturationB: 0.5 },
+    { maxRpm: 5000, powerCoefficient: 10, airflowCoefficient: 36, airflowSaturationB: 0.5 },
+    { maxRpm: 5000, powerCoefficient: 10, airflowCoefficient: 46, airflowSaturationB: 0.5 },
+    { maxRpm: 5000, powerCoefficient: 10, airflowCoefficient: 33, airflowSaturationB: 0.5 },
+    { maxRpm: 5000, powerCoefficient: 10, airflowCoefficient: 33, airflowSaturationB: 0.5 },
   ],
   // coupling[zoneIndex][fanIndex]
   coupling: [
