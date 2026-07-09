@@ -10,12 +10,13 @@ import type { SimState } from './engine-api.js';
 
 export function control(state: SimState, context: Record<string, any>): number[] {
   const maxRpm = 5000;
-  const targets = [70, 60]; // conservative target temps per zone
+  // Spin a fan up in proportion to how far its zone is over the limit.
+  const limits = [80, 70]; // zone A must stay under 80°C, zone B under 70°C
 
   return state.fans.map((_fan, i) => {
-    // Naive: fan 0,1 react to zone A; fan 2,3 react to zone B
+    // Fans 0,1 handle zone A; fans 2,3 handle zone B.
     const zone = i < 2 ? 0 : 1;
-    const error = state.zones[zone].temp - targets[zone];
+    const error = state.zones[zone].temp - limits[zone];
     return Math.max(0, Math.min(maxRpm, error * 200));
   });
 }
